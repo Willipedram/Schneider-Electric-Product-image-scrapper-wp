@@ -1,10 +1,15 @@
 <?php
 /**
  * Plugin Name: Schneider Model Code Extractor
+ * Plugin URI: https://example.com/schneider-model-code-extractor
  * Description: استخراج کد مدل محصولات اشنایدر از نام و ثبت آن به عنوان شناسه محصول با رابط کاربری مدیریت شامل پروگرس بار و لاگ زنده.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: OpenAI ChatGPT
  * Text Domain: sme-model-extractor
+ * Domain Path: /languages
+ * Requires at least: 5.8
+ * Requires PHP: 7.4
+ * License: GPLv2 or later
  */
 
 if (!defined('ABSPATH')) {
@@ -16,12 +21,33 @@ if (!class_exists('SME_Model_Code_Extractor')) {
     {
         const NONCE_ACTION = 'sme_model_code_extractor';
         const META_KEY = '_sme_model_code';
+        const VERSION = '1.0.1';
 
         public function __construct()
         {
             add_action('admin_menu', [$this, 'register_menu']);
             add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
             add_action('wp_ajax_sme_process_products', [$this, 'ajax_process_products']);
+            add_filter('plugin_action_links_' . plugin_basename(__FILE__), [$this, 'add_settings_link']);
+            add_action('admin_notices', [$this, 'maybe_show_woocommerce_notice']);
+        }
+
+        public function add_settings_link(array $links): array
+        {
+            $settings_link = '<a href="' . esc_url(admin_url('admin.php?page=sme-model-code-extractor')) . '">' . esc_html__('اجرای استخراج', 'sme-model-extractor') . '</a>';
+            array_unshift($links, $settings_link);
+            return $links;
+        }
+
+        public function maybe_show_woocommerce_notice(): void
+        {
+            if (!is_admin() || (defined('DOING_AJAX') && DOING_AJAX)) {
+                return;
+            }
+
+            if (!class_exists('WooCommerce')) {
+                echo '<div class="notice notice-error"><p>' . esc_html__('برای استفاده از افزونه «Schneider Model Code Extractor» نیاز است ووکامرس فعال باشد.', 'sme-model-extractor') . '</p></div>';
+            }
         }
 
         public function register_menu(): void
@@ -42,8 +68,8 @@ if (!class_exists('SME_Model_Code_Extractor')) {
                 return;
             }
 
-            wp_enqueue_style('sme-model-extractor', plugin_dir_url(__FILE__) . 'assets/admin.css', [], '1.0.0');
-            wp_enqueue_script('sme-model-extractor', plugin_dir_url(__FILE__) . 'assets/admin.js', ['jquery'], '1.0.0', true);
+            wp_enqueue_style('sme-model-extractor', plugin_dir_url(__FILE__) . 'assets/admin.css', [], self::VERSION);
+            wp_enqueue_script('sme-model-extractor', plugin_dir_url(__FILE__) . 'assets/admin.js', ['jquery'], self::VERSION, true);
 
             $product_counts = wc_get_products([
                 'limit'  => 1,
@@ -91,6 +117,10 @@ if (!class_exists('SME_Model_Code_Extractor')) {
 
             if (!current_user_can('manage_woocommerce')) {
                 wp_send_json_error(__('Unauthorized', 'sme-model-extractor'), 403);
+            }
+
+            if (!class_exists('WooCommerce')) {
+                wp_send_json_error(__('WooCommerce must be active برای اجرای این پردازش.', 'sme-model-extractor'), 400);
             }
 
             $offset = isset($_POST['offset']) ? (int) $_POST['offset'] : 0;
