@@ -1,0 +1,51 @@
+.sme-model-extractor {
+    max-width: 960px;
+}
+
+.sme-model-extractor .sme-progress-wrapper {
+    position: relative;
+    width: 100%;
+    height: 24px;
+    background: #f1f1f1;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 12px 0;
+}
+
+.sme-model-extractor .sme-progress-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, #1e90ff, #00c853);
+    transition: width 0.3s ease;
+}
+
+.sme-model-extractor .sme-progress-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.sme-model-extractor .sme-log {
+    background: #111827;
+    color: #e5e7eb;
+    border-radius: 6px;
+    padding: 12px;
+    max-height: 320px;
+    overflow-y: auto;
+    font-family: Consolas, Monaco, monospace;
+    direction: rtl;
+}
+
+.sme-model-extractor .sme-log p {
+    margin: 0 0 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(229, 231, 235, 0.2);
+}
+
+.sme-model-extractor #sme-eta {
+    color: #2563eb;
+}
