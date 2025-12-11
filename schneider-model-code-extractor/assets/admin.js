@@ -4,10 +4,14 @@
     const progressText = $('#sme-progress-text');
     const logContainer = $('#sme-log');
     const eta = $('#sme-eta');
+    const withCountEl = $('#sme-with-count');
+    const missingCountEl = $('#sme-missing-count');
 
     let offset = 0;
     let processed = 0;
     let startTime = null;
+    let missingRemaining = parseInt(smeExtractor.missingCount, 10) || 0;
+    let withCount = parseInt(smeExtractor.withCode, 10) || 0;
 
     function appendLog(lines) {
         lines.forEach((line) => {
@@ -28,6 +32,17 @@
             const etaSeconds = rate > 0 ? Math.round(remaining / rate) : 0;
             eta.text(etaSeconds > 0 ? `${etaSeconds} ثانیه باقی‌مانده` : '');
         }
+    }
+
+    function updateStats(updatedCount) {
+        if (!updatedCount) return;
+
+        withCount += updatedCount;
+        missingRemaining = Math.max(0, missingRemaining - updatedCount);
+
+        const formatNumber = (num) => (num.toLocaleString ? num.toLocaleString('fa-IR') : num);
+        withCountEl.text(formatNumber(withCount));
+        missingCountEl.text(formatNumber(missingRemaining));
     }
 
     function processBatch() {
@@ -56,8 +71,9 @@
 
                 appendLog(data.logs || []);
                 updateProgress(total);
+                updateStats(data.updated);
 
-                if (data.complete || processed >= total) {
+                if (data.complete || processed >= total || missingRemaining <= 0) {
                     progressBar.css('width', '100%');
                     progressText.text('پایان یافت');
                     eta.text('');
@@ -74,6 +90,10 @@
     }
 
     startButton.on('click', () => {
+        if (missingRemaining === 0) {
+            appendLog(['همه محصولات دارای کد هستند.']);
+            return;
+        }
         processed = 0;
         offset = 0;
         startTime = Date.now();

@@ -23,6 +23,9 @@ if (!class_exists('SME_Model_Code_Extractor')) {
         const META_KEY = '_sme_model_code';
         const VERSION = '1.0.1';
 
+        /** @var array<string,int>|null */
+        private $cached_counts = null;
+
         public function __construct()
         {
             add_action('admin_menu', [$this, 'register_menu']);
@@ -68,22 +71,17 @@ if (!class_exists('SME_Model_Code_Extractor')) {
                 return;
             }
 
+            $counts = $this->get_product_counts();
+
             wp_enqueue_style('sme-model-extractor', plugin_dir_url(__FILE__) . 'assets/admin.css', [], self::VERSION);
             wp_enqueue_script('sme-model-extractor', plugin_dir_url(__FILE__) . 'assets/admin.js', ['jquery'], self::VERSION, true);
-
-            $product_counts = wc_get_products([
-                'limit'  => 1,
-                'return' => 'ids',
-                'paginate' => true,
-                'status' => ['publish', 'draft', 'pending', 'private'],
-            ]);
-
-            $total = isset($product_counts->total) ? (int) $product_counts->total : 0;
 
             wp_localize_script('sme-model-extractor', 'smeExtractor', [
                 'ajaxUrl'       => admin_url('admin-ajax.php'),
                 'nonce'         => wp_create_nonce(self::NONCE_ACTION),
-                'totalProducts' => $total,
+                'totalProducts' => $counts['missing'],
+                'withCode'      => $counts['with_code'],
+                'missingCount'  => $counts['missing'],
                 'batchSize'     => 20,
             ]);
         }
@@ -93,10 +91,24 @@ if (!class_exists('SME_Model_Code_Extractor')) {
             if (!current_user_can('manage_woocommerce')) {
                 wp_die(__('You do not have permission to access this page.', 'sme-model-extractor'));
             }
+
+            $counts = $this->get_product_counts();
             ?>
             <div class="wrap sme-model-extractor">
                 <h1><?php echo esc_html(__('Schneider Model Code Extractor', 'sme-model-extractor')); ?></h1>
                 <p><?php echo esc_html(__('با اجرای این ابزار، کد مدل محصولات موجود در عنوان، به‌صورت خودکار استخراج و به عنوان شناسه محصول (SKU) ذخیره می‌شود.', 'sme-model-extractor')); ?></p>
+
+                <div class="sme-stats">
+                    <div class="sme-stat-box has-code">
+                        <h3><?php echo esc_html(__('محصولات دارای کد', 'sme-model-extractor')); ?></h3>
+                        <p id="sme-with-count"><?php echo esc_html(number_format_i18n($counts['with_code'])); ?></p>
+                    </div>
+                    <div class="sme-stat-box missing-code">
+                        <h3><?php echo esc_html(__('محصولات بدون کد', 'sme-model-extractor')); ?></h3>
+                        <p id="sme-missing-count"><?php echo esc_html(number_format_i18n($counts['missing'])); ?></p>
+                    </div>
+                </div>
+
                 <button id="sme-start" class="button button-primary"><?php echo esc_html(__('شروع استخراج', 'sme-model-extractor')); ?></button>
                 <div class="sme-progress-wrapper">
                     <div class="sme-progress-bar" id="sme-progress-bar"></div>
@@ -132,6 +144,7 @@ if (!class_exists('SME_Model_Code_Extractor')) {
                 'status'   => ['publish', 'draft', 'pending', 'private'],
                 'paginate' => false,
                 'return'   => 'objects',
+                'meta_query' => $this->get_missing_products_meta_query(),
             ]);
 
             $processed = 0;
@@ -193,6 +206,77 @@ if (!class_exists('SME_Model_Code_Extractor')) {
             }
 
             return null;
+        }
+
+        /**
+         * @return array<string,int>
+         */
+        private function get_product_counts(): array
+        {
+            if (is_array($this->cached_counts)) {
+                return $this->cached_counts;
+            }
+
+            $total_query = wc_get_products([
+                'limit'    => 1,
+                'return'   => 'ids',
+                'paginate' => true,
+                'status'   => ['publish', 'draft', 'pending', 'private'],
+            ]);
+
+            $missing_query = wc_get_products([
+                'limit'      => 1,
+                'return'     => 'ids',
+                'paginate'   => true,
+                'status'     => ['publish', 'draft', 'pending', 'private'],
+                'meta_query' => $this->get_missing_products_meta_query(),
+            ]);
+
+            $total = isset($total_query->total) ? (int) $total_query->total : 0;
+            $missing = isset($missing_query->total) ? (int) $missing_query->total : 0;
+            $with_code = max(0, $total - $missing);
+
+            $this->cached_counts = [
+                'total'      => $total,
+                'missing'    => $missing,
+                'with_code'  => $with_code,
+            ];
+
+            return $this->cached_counts;
+        }
+
+        /**
+         * @return array<int,array<string,string>>
+         */
+        private function get_missing_products_meta_query(): array
+        {
+            return [
+                'relation' => 'AND',
+                [
+                    'relation' => 'OR',
+                    [
+                        'key'     => self::META_KEY,
+                        'compare' => 'NOT EXISTS',
+                    ],
+                    [
+                        'key'     => self::META_KEY,
+                        'value'   => '',
+                        'compare' => '=',
+                    ],
+                ],
+                [
+                    'relation' => 'OR',
+                    [
+                        'key'     => '_sku',
+                        'compare' => 'NOT EXISTS',
+                    ],
+                    [
+                        'key'     => '_sku',
+                        'value'   => '',
+                        'compare' => '=',
+                    ],
+                ],
+            ];
         }
     }
 
